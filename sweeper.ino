@@ -7,15 +7,13 @@ MotorDriver motor1(1);
 
 // Config
 const bool testMode = false;
-const byte preventStuckLimitSeconds = 10; // number of seconds driving forward before trying to get unstuck
 
 // Motor
 const int maxPWM = 10000;
 const int steps = 100;
 const int stepSize = maxPWM/steps;
-const int velPWM = 5000;
+const int velPWM = 6000;
 bool isTurning = false;
-unsigned long timeStartedDriveForward = 0;
 
 // Ping
 const byte sonarNum = 3; // number of sensors
@@ -28,7 +26,7 @@ const byte echoPinRight = 4;
 const int maxDistance = 200;
 const byte detectionDistCM = 18;
 bool ignoreObstacles = false;
-const byte falsePositiveLimit = 5; // cycles of is obstacle before reacting
+const byte falsePositiveLimit = 3; // cycles of is obstacle before reacting
 byte falsePositiveCount = 0;
 
 
@@ -45,7 +43,7 @@ void setup() {
     Serial.println("=========");
     Serial.println("= START =");
     Serial.println("=========");
-  
+
     //The value passed to begin() is the maximum PWM value, which is 16 bit(up to 65535)
     //This value also determines the output frequency- by default, 8MHz divided by the maxPWM value
     if(motor.begin(maxPWM)){
@@ -56,7 +54,7 @@ void setup() {
         Serial.println("Motor driver 1 not detected!");
         while(1);
     }
-  
+
     //The failsafe turns off motors if a command is not sent in a certain amount of time.
     //Failsafe is set in milliseconds- comment or set to 0 to disable
     motor.setFailsafe(1000);
@@ -65,10 +63,8 @@ void setup() {
 
 void drive(String dir = "forward") {
     if(testMode) { return; }
+
     if(dir == "forward") {
-        if(timeStartedDriveForward == 0) {
-            timeStartedDriveForward = millis();
-        }
         motor.setMotor(1, velPWM);
         motor.setMotor(2, velPWM);
     }
@@ -81,11 +77,11 @@ void drive(String dir = "forward") {
 void turn(String dir = "clockwise", String turn = "half") {
     int m1 = dir == "clockwise" ? velPWM : - velPWM;
     int m2 = dir == "clockwise" ? - velPWM : velPWM;
-    int turnTime = turn == "half" ? 900 : 450;
+    int turnTime = turn == "half" ? 1000 : 500;
     unsigned long turnStartTime = millis();
     isTurning = true;
     ignoreObstacles = true;
-    timeStartedDriveForward = 0;
+
     if(!testMode) {
         while(millis() - turnStartTime < turnTime) {
             motor.setMotor(1, m1);
@@ -104,7 +100,7 @@ bool fireSonar(int index, String label) {
     if(distanceCM > 0 && distanceCM < detectionDistCM) {
         Serial.println("Is obstacle " + label + " :");
         Serial.println(distanceCM);
-        return true;  
+        return true;
     }
     return false;
 }
@@ -113,7 +109,7 @@ String obstacleDirection() {
     if(ignoreObstacles) { return "none"; }
     if(fireSonar(0, "left")) {
         Serial.println("Is obstacle LEFT");
-        return "left";  
+        return "left";
     }
     if(fireSonar(1, "center")) {
         Serial.println("Is obstacle CENTER");
@@ -126,22 +122,13 @@ String obstacleDirection() {
     return "none";
 }
 
-bool isStuck() {
-    if(timeStartedDriveForward > 0 && (millis() - timeStartedDriveForward) / 1000 >= preventStuckLimitSeconds) {
-        Serial.println("Is stuck");
-        timeStartedDriveForward = 0;
-        return true;  
-    }
-    return false;
-}
-
 void reverseAndTurn() {
     const byte reverseSeconds = 2;
     unsigned long startTime = millis();
     ignoreObstacles = true;
     Serial.println("Reversing and turning");
     while((millis() - startTime) / 1000 < reverseSeconds) {
-        drive("reverse"); 
+        drive("reverse");
     }
     turn();
     ignoreObstacles = false;
@@ -149,16 +136,15 @@ void reverseAndTurn() {
 
 void sweep() {
     motor1.setMotor(1, 30000);
-    motor1.setMotor(2, 30000);  
+    motor1.setMotor(2, 30000);
 }
 
 void loop() {
     sweep();
-    
-    if(isStuck()) {
-        reverseAndTurn();
-    }
-    else if(!isTurning) {
+
+    drive("forward");
+
+    if(!isTurning) {
         drive("forward");
     }
 
@@ -166,18 +152,19 @@ void loop() {
     String obstacleDir = obstacleDirection();
     if(obstacleDir != "none" && !isTurning) {
         falsePositiveCount++;
+        Serial.println("INCREASING FALSEPOSITIVE COUNT");
         if(falsePositiveCount >= falsePositiveLimit) {
             // Not a false positive, turn away from obstacle
             falsePositiveCount = 0;
             if(obstacleDir == "left") {
-                turn("clockwise", "quarter");  
+                turn("clockwise", "quarter");
             }
             else if(obstacleDir == "right") {
-                turn("anticlockwise", "quarter");  
+                turn("anticlockwise", "quarter");
             }
             else {
                 turn();
-            } 
+            }
         }
     }
     else if(falsePositiveCount != 0) {

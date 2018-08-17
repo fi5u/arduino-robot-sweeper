@@ -77,7 +77,7 @@ void drive(String dir = "forward") {
 void turn(String dir = "clockwise", String turn = "half") {
     int m1 = dir == "clockwise" ? velPWM : - velPWM;
     int m2 = dir == "clockwise" ? - velPWM : velPWM;
-    int turnTime = turn == "half" ? 1000 : 500;
+    int turnTime = turn == "half" ? 8400 : 4450;
     unsigned long turnStartTime = millis();
     isTurning = true;
     ignoreObstacles = true;

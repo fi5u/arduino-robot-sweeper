@@ -29,6 +29,10 @@ bool ignoreObstacles = false;
 const byte falsePositiveLimit = 3; // cycles of is obstacle before reacting
 byte falsePositiveCount = 0;
 
+// Stuck
+unsigned long forwardStartTime = millis();
+const int forwardDriveMaxSecs = 60;
+
 
 NewPing sonar[sonarNum] = {
     NewPing(triggerPinLeft, echoPinLeft, maxDistance),
@@ -90,8 +94,10 @@ void turn(String dir = "clockwise", String turn = "half") {
             Serial.println(millis() - turnStartTime);
         }
     }
+
     isTurning = false;
     ignoreObstacles = false;
+    forwardStartTime = millis();
 }
 
 bool fireSonar(int index, String label) {
@@ -123,7 +129,7 @@ String obstacleDirection() {
 }
 
 void reverseAndTurn() {
-    const byte reverseSeconds = 2;
+    const byte reverseSeconds = 8;
     unsigned long startTime = millis();
     ignoreObstacles = true;
     Serial.println("Reversing and turning");
@@ -132,6 +138,14 @@ void reverseAndTurn() {
     }
     turn();
     ignoreObstacles = false;
+}
+
+bool isPotentiallyStuck() {
+    if((millis() - forwardStartTime) / 1000 < forwardDriveMaxSecs) {
+        return true;
+    }
+
+    return false;
 }
 
 void sweep() {
@@ -144,8 +158,8 @@ void loop() {
 
     drive("forward");
 
-    if(!isTurning) {
-        drive("forward");
+    if(!isPotentiallyStuck()) {
+        reverseAndTurn();
     }
 
     // Check the obstacle detection is not a false positive

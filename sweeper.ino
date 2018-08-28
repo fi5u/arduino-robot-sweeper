@@ -78,10 +78,25 @@ void drive(String dir = "forward") {
     }
 }
 
-void turn(String dir = "clockwise", String turn = "half") {
-    int m1 = dir == "clockwise" ? velPWM : - velPWM;
-    int m2 = dir == "clockwise" ? - velPWM : velPWM;
-    int turnTime = turn == "half" ? 8400 : 4450;
+void turn(String dir = "clockwise", String turn = "rand") {
+    const int turnQuarter = 4450;
+    const int turnHalf = 8400;
+    const int turnFull = 16000;
+
+    const int m1 = dir == "clockwise" ? velPWM : - velPWM;
+    const int m2 = dir == "clockwise" ? - velPWM : velPWM;
+
+    int turnTime = 0;
+    if(turn == "quarter") {
+        turnTime = turnQuarter;
+    }
+    else if(turn == "half") {
+        turnTime = turnHalf;
+    } else {
+        // Random
+        turnTime = random(500, turnFull - 500);
+    }
+
     unsigned long turnStartTime = millis();
     isTurning = true;
     ignoreObstacles = true;

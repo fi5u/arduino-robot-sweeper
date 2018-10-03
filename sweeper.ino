@@ -1,9 +1,24 @@
+// Ref: https://github.com/mjs513/MPU6050-Motion-Detection/blob/master/MPU6050_MotionDetect.ino
+
 #include <Wire.h>
 #include <MotorDriver.h>
 #include <NewPing.h>
+#include "MPU6050_6Axis_MotionApps20.h"
 
 MotorDriver motor(0); //value passed is the address- remove resistor R1 for 1, R2 for 2, R1 and R2 for 3
 MotorDriver motor1(1);
+
+// Accelerometer
+MPU6050 accelgyro;
+int16_t ax, ay, az;
+int16_t gx, gy, gz;
+int8_t threshold, count;
+float temp;
+bool zero_detect;
+bool TurnOnZI = true;
+bool XnegMD, XposMD, YnegMD, YposMD, ZnegMD, ZposMD;
+#define LED_PIN 13
+bool blinkState = false;
 
 // Config
 const bool testMode = false;
@@ -30,8 +45,8 @@ const byte falsePositiveLimit = 3; // cycles of is obstacle before reacting
 byte falsePositiveCount = 0;
 
 // Stuck
-unsigned long forwardStartTime = millis();
-const int forwardDriveMaxSecs = 60;
+const float zeroMoveMaxSecs = 1.2;
+unsigned long motionStartTime = millis();
 
 
 NewPing sonar[sonarNum] = {
@@ -47,6 +62,20 @@ void setup() {
     Serial.println("=========");
     Serial.println("= START =");
     Serial.println("=========");
+
+    // Accelerometer
+    Serial.println("Initializing I2C devices...");
+    accelgyro.initialize();
+    Serial.println("Testing device connections...");
+    Serial.println(accelgyro.testConnection() ? "MPU6050 connection successful" : "MPU6050 connection failed");
+    accelgyro.setAccelerometerPowerOnDelay(3);
+    accelgyro.setIntZeroMotionEnabled(TurnOnZI);
+    accelgyro.setDHPFMode(1);
+    accelgyro.setMotionDetectionThreshold(1);
+    accelgyro.setZeroMotionDetectionThreshold(1);
+    accelgyro.setMotionDetectionDuration(5);
+    accelgyro.setZeroMotionDetectionDuration(1);
+    pinMode(LED_PIN, OUTPUT);
 
     //The value passed to begin() is the maximum PWM value, which is 16 bit(up to 65535)
     //This value also determines the output frequency- by default, 8MHz divided by the maxPWM value
@@ -112,7 +141,6 @@ void turn(String dir = "clockwise", String turn = "rand") {
 
     isTurning = false;
     ignoreObstacles = false;
-    forwardStartTime = millis();
 }
 
 bool fireSonar(int index, String label) {
@@ -155,8 +183,17 @@ void reverseAndTurn() {
     ignoreObstacles = false;
 }
 
-bool isPotentiallyStuck() {
-    if((millis() - forwardStartTime) / 1000 < forwardDriveMaxSecs) {
+bool checkMovement() {
+    accelgyro.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
+    zero_detect = accelgyro.getIntMotionStatus();
+
+    if(zero_detect == 1) {
+        motionStartTime = millis();
+    }
+}
+
+bool isStuck() {
+    if((millis() - motionStartTime) / 1000 > zeroMoveMaxSecs) {
         return true;
     }
 
@@ -169,12 +206,17 @@ void sweep() {
 }
 
 void loop() {
+    checkMovement();
+
     sweep();
 
     drive("forward");
 
-    if(!isPotentiallyStuck()) {
+    if(isStuck()) {
+        digitalWrite(LED_PIN, HIGH);
         reverseAndTurn();
+    } else {
+        digitalWrite(LED_PIN, LOW);
     }
 
     // Check the obstacle detection is not a false positive
